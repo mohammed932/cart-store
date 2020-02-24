@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Cart = require("../models/cart");
-const mongoose = require("mongoose");
 const CartService = require("../services/CartService");
 const validationSchema = require("../helpers/validation");
-var _ = require("lodash");
+
 // create new cart
 router.post("/", async (req, res) => {
   try {
@@ -12,7 +10,7 @@ router.post("/", async (req, res) => {
     let response = await CartService(req.body);
     res.json(response);
   } catch (error) {
-    console.log(error);
+    res.json(error);
   }
 });
 
@@ -31,49 +29,12 @@ router.post("/:id/invite", async (req, res) => {
 // remove user from cart
 router.post("/:id/revoke", async (req, res) => {
   try {
-    console.log("req.body.userId :", req.body.userId);
-    var cart = await Cart.findOne({ _id: req.params.id });
-    if (req.user._id == cart.admin) {
-      console.log("Iam admin of cart");
-      if (cart.authorizedUsers.includes(req.body.userId)) {
-        cart.authorizedUsers.pull(req.body.userId);
-        await Cart.update(
-          { _id: cart._id },
-          {
-            $pull: {
-              products: { user: mongoose.Types.ObjectId(req.body.userId) }
-            }
-          },
-          { multi: true }
-        );
-        await cart.save();
-        res.json(cart);
-      } else {
-        res.json({ message: "this user who want to delete not exist" });
-      }
-    } else if (cart.authorizedUsers.includes(req.body.userId)) {
-      // user can remove him self only.
-      console.log("token user id :", req.user._id);
-      if (req.user._id == req.body.userId) {
-        console.log("this user has access to delete product");
-        cart.authorizedUsers.pull(req.body.userId);
-        await Cart.update(
-          { _id: cart._id },
-          {
-            $pull: {
-              products: { user: mongoose.Types.ObjectId(req.body.userId) }
-            }
-          },
-          { multi: true }
-        );
-        await cart.save();
-        res.json(cart);
-      } else {
-        res.json({ message: "this user not allowed to remove other users" });
-      }
-    } else {
-      res.json({ message: "User not exist in authorized users" });
-    }
+    const response = await CartService.removeUserToCart(
+      req.params.id,
+      req.body.userId,
+      req.user._id
+    );
+    res.json(response);
   } catch (error) {
     console.log(error);
     res.json({ message: error });
@@ -82,34 +43,25 @@ router.post("/:id/revoke", async (req, res) => {
 // get all carts
 router.get("/", async (req, res) => {
   try {
-    const response = await Cart.find().populate(
-      "admin",
-      "-token -password -__v"
-    );
+    const response = await CartService.getAllCarts();
     res.json(response);
   } catch (error) {
-    console.log(error);
+    res.json(error);
   }
 });
 // get cart details
 router.get("/:id", async (req, res) => {
   try {
-    const response = await Cart.find({ _id: req.params.id });
-    if (!response) return res.json({ message: "error occur" });
+    const response = await CartService.getCartDetails(req.params.id);
     res.json(response);
   } catch (error) {
     res.json(error);
-    console.log(error);
   }
 });
 // edit cart
 router.put("/:id", async (req, res) => {
   try {
-    const response = await Cart.findOneAndUpdate(
-      { _id: req.params.id },
-      req.body,
-      { new: true }
-    );
+    const response = await CartService.editCart(req.params.id);
     res.json(response);
   } catch (error) {
     console.log(error);
@@ -118,15 +70,8 @@ router.put("/:id", async (req, res) => {
 // delete cart
 router.delete("/:id", async (req, res) => {
   try {
-    const result = await Cart.findOneAndRemove({ _id: req.params.id });
-    if (result)
-      return res.json({
-        message: `Cart ${deletedCart.name} deleted successfully !`
-      });
-    else
-      return res.json({
-        message: `no cart with selected id ${req.params.id} found !`
-      });
+    const response = await CartService.deleteCart(req.params.id);
+    res.json(response);
   } catch (error) {
     console.log(error);
   }
